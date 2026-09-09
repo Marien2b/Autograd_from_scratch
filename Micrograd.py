@@ -31,6 +31,7 @@ class Value:
         out._backward = _backward
         return out
 
+    #ça permet de rendre la classe plus robuste
     def __radd__(self, other):
         return self.__add__(other)
 

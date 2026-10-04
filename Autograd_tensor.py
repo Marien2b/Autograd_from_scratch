@@ -196,7 +196,7 @@ class Linear:
         self.b = tensor(np.random.uniform(-1, 1, size=(n_out,)), requires_grad=True)
 
     def __call__(self, x):
-        out = x @ self.W.T() + self.b
+        out = x @ self.W.T() + self.b #transpose à cause de la taille de W (n_out, n_in) et x (batch_size, n_in)
         return out
 
     def params(self):

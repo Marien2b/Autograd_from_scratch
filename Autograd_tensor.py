@@ -162,6 +162,35 @@ class tensor:
 
         return out
 
+    def pad(self): #on utilise une sytaxe numpy (merci numpy)
+        x_padded = np.pad(
+        self.data,
+        ((0, 0), (0, 0), (1, 1), (1, 1)),
+        mode="constant"
+        )
+        out = tensor(x_padded, (self,), op='pad', requires_grad=self.requires_grad)
+
+        if self.requires_grad: 
+            def _backward():
+                self.grad += out.grad[:, :, 1:-1, 1:-1]
+
+            out._backward = _backward
+        return out
+
+    def index(self, *indices):
+        data_out = self.data[indices]
+        out = tensor(data_out, (self,), op='index', requires_grad=self.requires_grad)
+
+        if self.requires_grad:
+            def _backward():
+                self.grad[indices] += out.grad
+
+            out._backward = _backward
+        return out
+
+    def stack(self, axis=0):
+        data_out #à finir
+
     def backward(self, grad = None):
         if grad is None:
             grad = np.ones_like(self.data)
@@ -188,6 +217,7 @@ class tensor:
             el._backward()
         for el in tri_topos:
             el.visited = 0
+    
 
 class Linear:
     def __init__(self, n_in, n_out):

@@ -17,7 +17,7 @@ class tensor:
     def __repr__(self):
             return f"Value(data = {self.data})"
 
-    @staticmethod
+    @staticmethod #méthode qui ne reçoit pas self
     def _coerce(other):
         if isinstance(other, tensor):
             return other
@@ -36,6 +36,10 @@ class tensor:
         return grad
 
     def unsqueeze(self, axis):
+        '''
+        Ajoute une dimension de taille 1 à l'axe spécifié.
+
+        '''
         requires_grad = self.requires_grad
         out = tensor(np.expand_dims(self.data, axis=axis), (self,), op='unsqueeze', requires_grad=requires_grad)
 
@@ -63,10 +67,15 @@ class tensor:
 
         return out
 
-    def sum(self):
+    def sum(self, axis = 0):
         requires_grad = self.requires_grad
-        out = tensor(np.sum(self.data), (self,), op='sum',
-                     requires_grad=requires_grad)
+        out = tensor(np.sum(self.data, axis=axis, keepdims=True), (self,), op='sum',
+                     requires_grad=requires_grad) 
+        
+        #keepdims = True permet de pas supprimer la dimension de 
+        #l'axe sur lequel on somme, ce qui permet de garder la même forme pour le backward
+        #sinon on aurait du faire un expand_dims
+        #ici on a juste le broadcast automatique de numpy
 
         if requires_grad:
             def _backward():
@@ -188,8 +197,19 @@ class tensor:
             out._backward = _backward
         return out
 
-    def stack(self, axis=0):
-        data_out #à finir
+    def stack(self, other, axis=0):
+        data_out = np.stack((self.data, other.data), axis=axis)
+        out = tensor(data_out, (self, other), op='stack', requires_grad=self.requires_grad or other.requires_grad)
+
+        if self.requires_grad or other.requires_grad:
+            def _backward():
+                self.grad += out.grad.take(indices=0, axis=axis)
+                other.grad += out.grad.take(indices=1, axis=axis)
+
+            out._backward = _backward
+        
+        return out
+
 
     def backward(self, grad = None):
         if grad is None:

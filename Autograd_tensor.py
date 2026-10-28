@@ -1,5 +1,4 @@
 from multiprocessing.dummy import Value
-
 import numpy as np
 import random as rd
 
@@ -17,7 +16,7 @@ class tensor:
     def __repr__(self):
             return f"Value(data = {self.data})"
 
-    @staticmethod #méthode qui ne reçoit pas self
+    @staticmethod
     def _coerce(other):
         if isinstance(other, tensor):
             return other
@@ -51,10 +50,11 @@ class tensor:
 
         return out
     
-
-    
-
     def __add__(self, other):
+        '''
+        Opération addition
+
+        '''
         other = self._coerce(other)
         requires_grad = self.requires_grad or other.requires_grad
         out = tensor(self.data + other.data, (self, other), op = '+', requires_grad = requires_grad)
@@ -67,19 +67,22 @@ class tensor:
 
         return out
 
-    def sum(self, axis = 0):
+    def sum(self, axis = 0, keepdims = False):
         requires_grad = self.requires_grad
-        out = tensor(np.sum(self.data, axis=axis, keepdims=True), (self,), op='sum',
+        out = tensor(np.sum(self.data, axis=axis, keepdims=keepdims), (self,), op='sum',
                      requires_grad=requires_grad) 
         
-        #keepdims = True permet de pas supprimer la dimension de 
+        #(keepdims = True) permet de ne pas supprimer la dimension de 
         #l'axe sur lequel on somme, ce qui permet de garder la même forme pour le backward
-        #sinon on aurait du faire un expand_dims
+        #sinon on aurait dû faire un expand_dims
         #ici on a juste le broadcast automatique de numpy
-
         if requires_grad:
-            def _backward():
-                self.grad += np.ones_like(self.data) * out.grad
+            if keepdims:
+                def _backward():
+                    self.grad += np.ones_like(self.data) * out.grad
+            else:
+                def _backward():
+                    self.grad += np.ones_like(self.data) * np.expand_dims(out.grad, axis=axis)
 
             out._backward = _backward
 
@@ -98,8 +101,6 @@ class tensor:
 
     def __sub__(self, other):
         return self + (-self._coerce(other))
-    
-    
     
     def __truediv__(self, other):
         other = self._coerce(other)
@@ -144,7 +145,6 @@ class tensor:
 
         return out
 
-
     def tanh(self):
         requires_grad = self.requires_grad
         out = tensor(np.tanh(self.data), (self,), op = 'tanh')
@@ -171,7 +171,11 @@ class tensor:
 
         return out
 
-    def pad(self): #on utilise une sytaxe numpy (merci numpy)
+    def pad(self):
+        '''
+        On utilise la syntaxe numpy.pad pour ajouter un padding de 1 autour de l'image.
+        On utilise le mode "constant" pour remplir les pixels ajoutés avec des zéros.
+        ''' 
         x_padded = np.pad(
         self.data,
         ((0, 0), (0, 0), (1, 1), (1, 1)),
@@ -187,6 +191,11 @@ class tensor:
         return out
 
     def index(self, *indices):
+        '''
+
+        On fait de l'indexage une opération tensorielle
+
+        '''
         data_out = self.data[indices]
         out = tensor(data_out, (self,), op='index', requires_grad=self.requires_grad)
 
@@ -197,7 +206,27 @@ class tensor:
             out._backward = _backward
         return out
 
+    @staticmethod
+    def stack(tensors, axis = 0):
+        '''
+        On fait de la concaténation une opération tensorielle
+        
+        '''
+        data_out = np.stack(tensors, axis = axis)
+        out = tensor(data_out, tuple(tensors), op='stack', requires_grad = True)
+
+        def _backward():
+            for i, t in enumerate(tensors):
+                t.grad += out.grad.take(indices=i, axis=axis)
+
+        out._backward = _backward
+        return out
+                
     def stack(self, other, axis=0):
+        '''
+        On fait de la concaténation une opération tensorielle
+        
+        '''
         data_out = np.stack((self.data, other.data), axis=axis)
         out = tensor(data_out, (self, other), op='stack', requires_grad=self.requires_grad or other.requires_grad)
 
@@ -246,7 +275,7 @@ class Linear:
         self.b = tensor(np.random.uniform(-1, 1, size=(n_out,)), requires_grad=True)
 
     def __call__(self, x):
-        out = x @ self.W.T() + self.b #transpose à cause de la taille de W (n_out, n_in) et x (batch_size, n_in)
+        out = x @ self.W.T() + self.b #on transpose W à cause de la taille de W (n_out, n_in) et x (batch_size, n_in)
         return out
 
     def params(self):
